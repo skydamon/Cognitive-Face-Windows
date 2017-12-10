@@ -226,9 +226,9 @@ namespace Microsoft.ProjectOxford.Face.Controls
                 return faceid_list;
             }
         }
-        private ImageSource MergeImage1;
+        private ImageSource _MergeImage1;
         //public ImageSource MergeImage1;//=> getMergedPicture("D://1.jpg", "D://3.jpg");
-        /*
+        
         public ImageSource MergeImage1
         {
             get
@@ -245,7 +245,7 @@ namespace Microsoft.ProjectOxford.Face.Controls
                 }
             }
         }
-        */
+        
         #endregion Properties
 
         #region Methods
