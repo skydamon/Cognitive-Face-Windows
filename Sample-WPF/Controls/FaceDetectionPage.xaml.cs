@@ -32,6 +32,7 @@
 //
 
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -39,6 +40,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace Microsoft.ProjectOxford.Face.Controls
 {
@@ -200,88 +202,139 @@ namespace Microsoft.ProjectOxford.Face.Controls
         /// <param name="e">Event argument</param>
         private async void ImagePicker_Click(object sender, RoutedEventArgs e)
         {
-            // Show file picker dialog
-            Microsoft.Win32.OpenFileDialog dlg = new Microsoft.Win32.OpenFileDialog();
-            dlg.DefaultExt = ".jpg";
-            dlg.Filter = "Image files (*.jpg, *.png, *.bmp, *.gif) | *.jpg; *.png; *.bmp; *.gif";
-            var result = dlg.ShowDialog();
+            SelectedFile = getMergedPicture("D:\\1.jpg", "D:\\3.jpg");
+        }
+        public BitmapSource getMergedPicture(string userPicturePath, string hisPicturePath)
+        {
+            var hismanImage = UIHelper.LoadImageAppliedOrientation(hisPicturePath);
+            WriteableBitmap target = new WriteableBitmap(
+            hismanImage.PixelWidth,
+            hismanImage.PixelHeight,
+            hismanImage.DpiX, hismanImage.DpiY,
+            hismanImage.Format, null);
+            WriteableBitmap[] targets = { target };
+            getMergedPictureCore(userPicturePath, hisPicturePath, targets, hismanImage);
+            return targets[0];
 
-            if (result.HasValue && result.Value)
-            {
-                // User picked one image
-                var pickedImagePath = dlg.FileName;
-                var renderingImage = UIHelper.LoadImageAppliedOrientation(pickedImagePath);
-                var imageInfo = UIHelper.GetImageInfoForRendering(renderingImage);
-                SelectedFile = renderingImage;
-                
-                // Clear last detection result
-                ResultCollection.Clear();
-                DetectedFaces.Clear();
-                DetectedResultsInText = string.Format("Detecting...");
-
-                MainWindow.Log("Request: Detecting {0}", pickedImagePath);
-                var sw = Stopwatch.StartNew();
-
-                // Call detection REST API
-                using (var fStream = File.OpenRead(pickedImagePath))
-                {
-                    try
-                    {
-                        MainWindow mainWindow = Window.GetWindow(this) as MainWindow;
-                        string subscriptionKey = mainWindow._scenariosControl.SubscriptionKey;
-                        string endpoint = mainWindow._scenariosControl.SubscriptionEndpoint;
-
-                        var faceServiceClient = new FaceServiceClient(subscriptionKey, endpoint);
-                        ProjectOxford.Face.Contract.Face[] faces = await faceServiceClient.DetectAsync(fStream, false, true, new FaceAttributeType[] { FaceAttributeType.Gender, FaceAttributeType.Age, FaceAttributeType.Smile, FaceAttributeType.Glasses, FaceAttributeType.HeadPose, FaceAttributeType.FacialHair, FaceAttributeType.Emotion, FaceAttributeType.Hair, FaceAttributeType.Makeup, FaceAttributeType.Occlusion, FaceAttributeType.Accessories, FaceAttributeType.Noise, FaceAttributeType.Exposure, FaceAttributeType.Blur });
-                        MainWindow.Log("Response: Success. Detected {0} face(s) in {1}", faces.Length, pickedImagePath);
-
-                        DetectedResultsInText = string.Format("{0} face(s) has been detected", faces.Length);
-
-                        foreach (var face in faces)
-                        {
-                            DetectedFaces.Add(new Face()
-                            {
-                                ImageFile = renderingImage,
-                                Left = face.FaceRectangle.Left,
-                                Top = face.FaceRectangle.Top,
-                                Width = face.FaceRectangle.Width,
-                                Height = face.FaceRectangle.Height,
-                                FaceId = face.FaceId.ToString(),
-                                Age = string.Format("{0:#} years old", face.FaceAttributes.Age),
-                                Gender = face.FaceAttributes.Gender,
-                                HeadPose = string.Format("Pitch: {0}, Roll: {1}, Yaw: {2}", Math.Round(face.FaceAttributes.HeadPose.Pitch, 2), Math.Round(face.FaceAttributes.HeadPose.Roll, 2), Math.Round(face.FaceAttributes.HeadPose.Yaw, 2)),
-                                FacialHair = string.Format("FacialHair: {0}", face.FaceAttributes.FacialHair.Moustache + face.FaceAttributes.FacialHair.Beard + face.FaceAttributes.FacialHair.Sideburns > 0 ? "Yes" : "No"),
-                                Glasses = string.Format("GlassesType: {0}", face.FaceAttributes.Glasses.ToString()),
-                                Emotion = $"{GetEmotion(face.FaceAttributes.Emotion)}",
-                                Hair = string.Format("Hair: {0}", GetHair(face.FaceAttributes.Hair)),
-                                Makeup = string.Format("Makeup: {0}", ((face.FaceAttributes.Makeup.EyeMakeup || face.FaceAttributes.Makeup.LipMakeup) ? "Yes" : "No")),
-                                EyeOcclusion = string.Format("EyeOccluded: {0}", ((face.FaceAttributes.Occlusion.EyeOccluded) ? "Yes" : "No")),
-                                ForeheadOcclusion = string.Format("ForeheadOccluded: {0}", (face.FaceAttributes.Occlusion.ForeheadOccluded ? "Yes" : "No")),
-                                MouthOcclusion = string.Format("MouthOccluded: {0}", (face.FaceAttributes.Occlusion.MouthOccluded ? "Yes" : "No")),
-                                Accessories = $"{GetAccessories(face.FaceAttributes.Accessories)}",
-                                Blur = string.Format("Blur: {0}", face.FaceAttributes.Blur.BlurLevel.ToString()),
-                                Exposure = string.Format("{0}", face.FaceAttributes.Exposure.ExposureLevel.ToString()),
-                                Noise = string.Format("Noise: {0}", face.FaceAttributes.Noise.NoiseLevel.ToString()),                                                               
-                            });
-                        }
-
-                        // Convert detection result into UI binding object for rendering
-                        foreach (var face in UIHelper.CalculateFaceRectangleForRendering(faces, MaxImageSize, imageInfo))
-                        {
-                            ResultCollection.Add(face);
-                        }
-                    }
-                    catch (FaceAPIException ex)
-                    {
-                        MainWindow.Log("Response: {0}. {1}", ex.ErrorCode, ex.ErrorMessage);
-                        GC.Collect();
-                        return;
-                    }
-                    GC.Collect();
-                }   
-            }
         }
 
+        public async void getMergedPictureCore(string userPicturePath, string hisPicturePath, WriteableBitmap[] targets, BitmapImage hismanImage)
+        {
+            ///renderingImag 是一个bitmap类型
+            var renderingImage = UIHelper.LoadImageAppliedOrientation(userPicturePath);
+
+            // Call detection REST API
+            using (var fStream = File.OpenRead(userPicturePath))
+            {
+                var fStream2 = File.OpenRead(hisPicturePath);
+                string subscriptionKey = "3f7c942ba5344a61b0645fc7f92377db";
+                string endpoint = "https://westcentralus.api.cognitive.microsoft.com/face/v1.0";
+
+                var faceServiceClient = new FaceServiceClient(subscriptionKey, endpoint);
+
+                ProjectOxford.Face.Contract.Face[] faces = await faceServiceClient.DetectAsync(fStream, false, true, new FaceAttributeType[] { FaceAttributeType.Gender, FaceAttributeType.Age, FaceAttributeType.Smile, FaceAttributeType.Glasses, FaceAttributeType.HeadPose, FaceAttributeType.FacialHair, FaceAttributeType.Emotion, FaceAttributeType.Hair, FaceAttributeType.Makeup, FaceAttributeType.Occlusion, FaceAttributeType.Accessories, FaceAttributeType.Noise, FaceAttributeType.Exposure, FaceAttributeType.Blur });
+                ProjectOxford.Face.Contract.Face[] faces2 = await faceServiceClient.DetectAsync(fStream2, false, true, new FaceAttributeType[] { FaceAttributeType.Gender, FaceAttributeType.Age, FaceAttributeType.Smile, FaceAttributeType.Glasses, FaceAttributeType.HeadPose, FaceAttributeType.FacialHair, FaceAttributeType.Emotion, FaceAttributeType.Hair, FaceAttributeType.Makeup, FaceAttributeType.Occlusion, FaceAttributeType.Accessories, FaceAttributeType.Noise, FaceAttributeType.Exposure, FaceAttributeType.Blur });
+
+                //DetectedResultsInText = string.Format("{0} face(s) has been detected", faces.Length);
+                if (faces.Length <= 0 || faces.Length <= 0)
+                {
+                    //return SelectedFile;
+                    return;
+                }
+                var face = faces[0];
+                var face2 = faces2[0];
+
+                ///face0
+                int upLeftX = (int)face.FaceLandmarks.EyebrowLeftOuter.X;
+                int upLeftY = (int)face.FaceLandmarks.EyebrowLeftOuter.Y;
+                int upLeft2Y = (int)face.FaceLandmarks.EyebrowLeftInner.Y;
+                int upRight2Y = (int)face.FaceLandmarks.EyebrowRightInner.Y;
+                int upRightX = (int)face.FaceLandmarks.EyebrowRightOuter.X;
+                int upRightY = (int)face.FaceLandmarks.EyebrowRightOuter.Y;
+                int downLeftX = (int)face.FaceLandmarks.MouthLeft.X;
+                int downLeftY = (int)face.FaceLandmarks.MouthLeft.Y;
+                int downRightX = (int)face.FaceLandmarks.MouthRight.X;
+                int downRightY = (int)face.FaceLandmarks.MouthRight.Y;
+                int downMiddle = (int)face.FaceLandmarks.UnderLipBottom.Y;
+
+
+                ///get offset
+                int faceNoseX = (int)(face.FaceLandmarks.NoseRootLeft.X + face.FaceLandmarks.NoseRootRight.X +
+                    face.FaceLandmarks.NoseLeftAlarOutTip.X + face.FaceLandmarks.NoseRightAlarOutTip.X +
+                    face.FaceLandmarks.NoseTip.X) / 5;
+                int faceNoseY = (int)(face.FaceLandmarks.NoseRootLeft.Y + face.FaceLandmarks.NoseRootRight.Y +
+                    face.FaceLandmarks.NoseLeftAlarOutTip.Y + face.FaceLandmarks.NoseRightAlarOutTip.Y +
+                    face.FaceLandmarks.NoseTip.Y) / 5;
+                int face2NoseX = (int)(face2.FaceLandmarks.NoseRootLeft.X + face2.FaceLandmarks.NoseRootRight.X +
+                    face2.FaceLandmarks.NoseLeftAlarOutTip.X + face2.FaceLandmarks.NoseRightAlarOutTip.X +
+                    face2.FaceLandmarks.NoseTip.X) / 5;
+                int face2NoseY = (int)(face2.FaceLandmarks.NoseRootLeft.Y + face2.FaceLandmarks.NoseRootRight.Y +
+                    face2.FaceLandmarks.NoseLeftAlarOutTip.Y + face2.FaceLandmarks.NoseRightAlarOutTip.Y +
+                    face2.FaceLandmarks.NoseTip.Y) / 5;
+                int offsetX = face2NoseX - faceNoseX;
+                int offsetY = face2NoseY - faceNoseY;
+
+
+
+                int pixelHeight = renderingImage.PixelHeight;
+                int bitsPerPixel = renderingImage.Format.BitsPerPixel;
+                int pixelWidth = renderingImage.PixelWidth;
+                int stride = pixelWidth * bitsPerPixel / 8;
+
+                int hismanStride = hismanImage.PixelWidth * hismanImage.Format.BitsPerPixel / 8;
+
+                int[] allPixels = new int[hismanStride * hismanImage.PixelHeight];
+                hismanImage.CopyPixels(allPixels, hismanStride, 0);
+                targets[0].WritePixels(
+                new Int32Rect(0, 0, hismanImage.PixelWidth, hismanImage.PixelHeight),
+                                allPixels, hismanStride, 0);
+
+                ////高度宽度矫正 TODO:
+                int up = upRightY < upLeftY ? upRightY : upLeftY;
+                up = up < upRight2Y ? up : upRight2Y;
+                up = up < upLeft2Y ? up : upLeft2Y;
+                int down = downRightY > downLeftY ? downRightY + 1 : downLeftY + 1;
+                down = down > downMiddle ? down : downMiddle;
+                int height = down - up;
+                int maxWidth = upRightX - upLeftX;
+                int minWidth = downRightX - downLeftX;
+                int halfWidthDiff = (maxWidth - minWidth) / 2;
+                down += height * 15 / 100; ;
+                up -= height * 10 / 100;
+                height = down - up;
+
+                int[] leftEdge = new int[down - up];
+                int[] rightEdge = new int[down - up];
+                for (int i = 0; i < down - up - height / 10; i++)
+                {
+                    leftEdge[i] = upLeftX + halfWidthDiff * i / height - (int)System.Math.Sqrt(maxWidth - System.Math.Abs((down - up) / 2 - i));
+                    rightEdge[i] = upRightX - halfWidthDiff * i / height + (int)System.Math.Sqrt(maxWidth - System.Math.Abs((down - up) / 2 - i));
+                }
+                for (int i = down - up - height / 10; i < down - up; i++)
+                {
+                    leftEdge[i] = upLeftX + halfWidthDiff * i / height;
+                    rightEdge[i] = upRightX - halfWidthDiff * i / height;
+
+                }
+                List<byte[]> list = new List<byte[]>();
+                for (int i = up; i < down; i += 1)
+                {
+                    int choosedWidth = rightEdge[i - up] - leftEdge[i - up];
+                    int lineStride = choosedWidth * bitsPerPixel / 8;
+                    byte[] pixels = new byte[lineStride];
+                    var temp = new Int32Rect(leftEdge[i - up], i, choosedWidth, 1);
+                    renderingImage.CopyPixels(temp, pixels, lineStride, 0);
+                    list.Add(pixels);
+                }
+                for (int i = up; i < down; i += 1)
+                {
+                    int choosedWidth = rightEdge[i - up] - leftEdge[i - up];
+                    int lineStride = choosedWidth * bitsPerPixel / 8;
+                    targets[0].WritePixels(new Int32Rect(leftEdge[i - up] + offsetX, i + offsetY, choosedWidth, 1), list[i - up], lineStride, 0);
+                }
+
+            }
+        }
         private string GetHair(Contract.Hair hair)
         {
             if (hair.HairColor.Length == 0)

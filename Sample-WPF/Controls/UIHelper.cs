@@ -34,6 +34,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -64,6 +65,35 @@ namespace Microsoft.ProjectOxford.Face.Controls
             return im;
         }
 
+        public static Bitmap BitmapImageToBitmap(BitmapImage bitmapImage)
+        {
+            // BitmapImage bitmapImage = new BitmapImage(new Uri("../Images/test.png", UriKind.Relative));
+
+            using (MemoryStream outStream = new MemoryStream())
+            {
+                BitmapEncoder enc = new BmpBitmapEncoder();
+                enc.Frames.Add(BitmapFrame.Create(bitmapImage));
+                enc.Save(outStream);
+                Bitmap bitmap = new Bitmap(outStream);
+
+                return new Bitmap(bitmap);
+            }
+        }
+
+        public static System.Drawing.Bitmap ImageSourceToBitmap(ImageSource imageSource)
+        {
+            BitmapSource m = (BitmapSource)imageSource;
+
+            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(m.PixelWidth, m.PixelHeight, System.Drawing.Imaging.PixelFormat.Format32bppPArgb); // 坑点：选Format32bppRgb将不带透明度
+
+            System.Drawing.Imaging.BitmapData data = bmp.LockBits(
+            new System.Drawing.Rectangle(System.Drawing.Point.Empty, bmp.Size), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+
+            m.CopyPixels(Int32Rect.Empty, data.Scan0, data.Height * data.Stride, data.Stride);
+            bmp.UnlockBits(data);
+
+            return bmp;
+        }
         /// <summary>
         /// Get image orientation flag.
         /// </summary>
@@ -171,6 +201,20 @@ namespace Microsoft.ProjectOxford.Face.Controls
                 ImageFile = renderingImage,
                 FaceId = face.PersistedFaceId.ToString(),
             });
+        }
+        public static void UpdateFace(ObservableCollection<Face> collections, string imagePath, Microsoft.ProjectOxford.Face.Contract.Face[] face)
+        {
+            var renderingImage = LoadImageAppliedOrientation(imagePath);
+            collections.Add(new Face()
+            {
+                ImageFile = renderingImage,
+                Left = face[0].FaceRectangle.Left,
+                Top = face[0].FaceRectangle.Top,
+                Width = face[0].FaceRectangle.Width,
+                Height = face[0].FaceRectangle.Height,
+                FaceId = face[0].FaceId.ToString(),
+            });
+
         }
 
         /// <summary>
