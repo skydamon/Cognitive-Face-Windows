@@ -400,6 +400,8 @@ namespace Microsoft.ProjectOxford.Face.Controls
                             /*MediaPlayer player = new MediaPlayer();
                             player.Open(new Uri(media_name[candidate1.FaceId].Substring(0, media_name[candidate1.FaceId].Length - 4) + ".WAV", UriKind.Relative));
                             player.Play();*/
+                            Thread.Sleep(5000);
+
                         }
                         catch (FaceAPIException ex)
                         {
@@ -903,9 +905,10 @@ namespace Microsoft.ProjectOxford.Face.Controls
                         MergeImage1 = getMergedPicture(@"D:\3.jpg", @"E:\hackathon\ls\cognitive-Face-Windows\image1.jpg");
                         //MergeImage1 = getMergedPicture("D:\\3.jpg", "D:\\1.jpg");
                         FindSimilarMatchFaceCollection.Add(faceSimilarResults);
-                           /* MediaPlayer player = new MediaPlayer();
-                            player.Open(new Uri(media_name[candidate1.FaceId].Substring(0, media_name[candidate1.FaceId].Length - 4) + ".WAV", UriKind.Relative));
-                            player.Play();*/
+                        /* MediaPlayer player = new MediaPlayer();
+                         player.Open(new Uri(media_name[candidate1.FaceId].Substring(0, media_name[candidate1.FaceId].Length - 4) + ".WAV", UriKind.Relative));
+                         player.Play();*/
+                        Thread.Sleep(4000);
                         }
                         catch (FaceAPIException ex)
                         {

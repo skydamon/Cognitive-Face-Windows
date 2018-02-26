@@ -202,7 +202,7 @@ namespace Microsoft.ProjectOxford.Face.Controls
         /// <param name="e">Event argument</param>
         private async void ImagePicker_Click(object sender, RoutedEventArgs e)
         {
-            SelectedFile = getMergedPicture("D:\\1.jpg", "D:\\3.jpg");
+            SelectedFile = getMergedPicture("D:\\3.jpg", "E:\\hackathon\\ls\\cognitive-Face-Windows\\data1\\lsm.jpg");
         }
         public BitmapSource getMergedPicture(string userPicturePath, string hisPicturePath)
         {
